@@ -4,6 +4,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\LogbookController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\PresenceController; // <-- TAMBAHKAN BARIS INI
 
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
@@ -18,9 +19,6 @@ Route::get('/', function () {
     ]);
 });
 
-// Route::get('/dashboard', function () {
-//     return Inertia::render('Dashboard');
-// })->middleware(['auth', 'verified'])->name('dashboard');
 Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified'])->name('dashboard');
 
@@ -29,7 +27,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
     Route::resource('logbooks', LogbookController::class);
-        Route::get('/reports/attendance/export', [ReportController::class, 'exportAttendance'])->name('reports.attendance.export');
+    Route::get('/reports/attendance/export', [ReportController::class, 'exportAttendance'])->name('reports.attendance.export');
+
+    
 });
 
 Route::put('/logbooks/{logbook}/verify', [LogbookController::class, 'verify'])->name('logbooks.verify')->middleware('auth');

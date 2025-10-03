@@ -8,9 +8,11 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use App\Notifications\LogbookVerified; // <-- NOTIFICATION IMPORTED
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class LogbookController extends Controller
 {
+    use AuthorizesRequests;
     /**
      * Display a listing of the student's own logbooks.
      */

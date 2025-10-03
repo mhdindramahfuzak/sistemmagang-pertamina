@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers;
+namespace App\Http\Controllers; // ✅ perbaiki namespace
 
 use App\Models\Presence;
 use App\Models\Internship;
@@ -10,7 +10,7 @@ use App\Services\GeolocationService;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 
-class PresenceController extends Controller
+class PresenceController extends Controller // ✅ extend controller Laravel
 {
     protected $geolocationService;
 
@@ -27,7 +27,6 @@ class PresenceController extends Controller
             'longitude' => 'required|numeric',
         ]);
 
-        // Pastikan yang check-in adalah user yang bersangkutan
         if ($internship->user_id !== Auth::id()) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
@@ -35,7 +34,6 @@ class PresenceController extends Controller
         $today = Carbon::today()->toDateString();
         $now = Carbon::now();
 
-        // Cek apakah sudah check-in hari ini
         $existingPresence = Presence::where('internship_id', $internship->id)
             ->where('date', $today)
             ->first();
@@ -44,10 +42,9 @@ class PresenceController extends Controller
             return response()->json(['message' => 'Anda sudah melakukan check-in hari ini.'], 422);
         }
 
-        // Koordinat pusat Pertamina Sei Pakning (CONTOH - GANTI DENGAN KOORDINAT ASLI)
-        $pertaminaLat = 1.6854; // Contoh Latitude
-        $pertaminaLon = 102.1121; // Contoh Longitude
-        $maxDistanceMeters = 200; // Radius toleransi 200 meter
+        $pertaminaLat = 1.6854;
+        $pertaminaLon = 102.1121;
+        $maxDistanceMeters = 200;
 
         $distance = $this->geolocationService->calculateDistance(
             $request->latitude,
@@ -62,7 +59,6 @@ class PresenceController extends Controller
             $reviewReason = "Lokasi di luar radius yang diizinkan (".round($distance)."m).";
         }
 
-        // Simpan foto
         $path = $request->file('photo')->store("presences/{$today}", 'public');
 
         $presence = Presence::updateOrCreate(
@@ -85,7 +81,7 @@ class PresenceController extends Controller
             'presence' => $presence,
         ], 201);
     }
-    
+
     public function checkOut(Request $request, Internship $internship)
     {
         $request->validate([
@@ -94,7 +90,6 @@ class PresenceController extends Controller
             'longitude' => 'required|numeric',
         ]);
 
-        // Pastikan yang check-out adalah user yang bersangkutan
         if ($internship->user_id !== Auth::id()) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
@@ -102,7 +97,6 @@ class PresenceController extends Controller
         $today = Carbon::today()->toDateString();
         $now = Carbon::now();
 
-        // Cek apakah sudah ada presence hari ini
         $presence = Presence::where('internship_id', $internship->id)
             ->where('date', $today)
             ->first();
@@ -115,10 +109,9 @@ class PresenceController extends Controller
             return response()->json(['message' => 'Anda sudah melakukan check-out hari ini.'], 422);
         }
 
-        // Koordinat pusat Pertamina Sei Pakning (GANTI DENGAN KOORDINAT ASLI)
-        $pertaminaLat = 1.6854; 
-        $pertaminaLon = 102.1121; 
-        $maxDistanceMeters = 200; // Radius toleransi 200 meter
+        $pertaminaLat = 1.6854;
+        $pertaminaLon = 102.1121;
+        $maxDistanceMeters = 200;
 
         $distance = $this->geolocationService->calculateDistance(
             $request->latitude,
@@ -128,22 +121,19 @@ class PresenceController extends Controller
         );
 
         $locationVerified = $distance <= $maxDistanceMeters;
-        $reviewReason = null;
+        $reviewReason = $presence->needs_manual_review_reason;
         if (!$locationVerified) {
             $reviewReason = "Lokasi di luar radius yang diizinkan saat check-out (".round($distance)."m).";
         }
 
-        // Simpan foto checkout
-        // BARU
-        $path = $request->file('photo')->store("presences/{$today}", 's3');
+        $path = $request->file('photo')->store("presences/{$today}", 'public');
 
-        // Update presence dengan data checkout
         $presence->update([
             'checkout_time' => $now,
             'checkout_photo_url' => $path,
             'checkout_lat' => $request->latitude,
             'checkout_lon' => $request->longitude,
-            'location_verified' => $locationVerified,
+            'location_verified' => $presence->location_verified && $locationVerified,
             'location_distance_m' => round($distance),
             'needs_manual_review_reason' => $reviewReason
         ]);
@@ -153,5 +143,4 @@ class PresenceController extends Controller
             'presence' => $presence,
         ], 200);
     }
-
 }
