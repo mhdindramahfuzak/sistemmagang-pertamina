@@ -2,15 +2,14 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\PresenceController; // Jangan lupa import
-
+use App\Http\Controllers\PresenceController;
 
 Route::middleware('auth:sanctum')->group(function() {
     Route::get('/user', function (Request $request) {
-        return $request->user();
+        return $request->user()->load('internship'); // Muat relasi internship
     });
 
-    // Pindahkan ke sini
+    // Rute Presensi untuk Intern
     Route::post('/internships/{internship}/presence/checkin', [PresenceController::class, 'checkIn'])->name('api.presence.checkin');
     Route::post('/internships/{internship}/presence/checkout', [PresenceController::class, 'checkOut'])->name('api.presence.checkout');
 });

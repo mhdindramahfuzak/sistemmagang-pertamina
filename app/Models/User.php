@@ -2,17 +2,17 @@
 
 namespace App\Models;
 
-use Illuminate\Contracts\Auth\MustVerifyEmail;
+// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Spatie\Permission\Traits\HasRoles; // tambahkan ini
-use Illuminate\Database\Eloquent\Relations\HasOne;
-use Illuminate\Database\Eloquent\Relations\HasMany;
+use Spatie\Permission\Traits\HasRoles; // HasRoles trait
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable, HasRoles; // tambahkan HasRoles di sini
+    use HasFactory, Notifiable, HasRoles; // Use HasRoles trait
 
     /**
      * The attributes that are mass assignable.
@@ -36,20 +36,39 @@ class User extends Authenticatable
     ];
 
     /**
-     * The attributes that should be cast.
+     * Get the attributes that should be cast.
      *
-     * @var array<string, string>
+     * @return array<string, string>
      */
-    protected $casts = [
-        'email_verified_at' => 'datetime',
-        'password' => 'hashed',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'email_verified_at' => 'datetime',
+            'password' => 'hashed',
+        ];
+    }
+
+    /**
+     * Get the profile associated with the user.
+     */
     public function profile(): HasOne
     {
         return $this->hasOne(Profile::class);
     }
+    
+    /**
+     * Get the internships for the user.
+     */
     public function internships(): HasMany
     {
         return $this->hasMany(Internship::class);
+    }
+
+    /**
+     * Get the internships this user supervises.
+     */
+    public function supervisedInternships(): HasMany
+    {
+        return $this->hasMany(Internship::class, 'supervisor_id');
     }
 }

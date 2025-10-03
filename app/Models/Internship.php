@@ -2,18 +2,42 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Internship extends Model
 {
+    use HasFactory;
+
+    protected $fillable = [
+        'user_id',
+        'supervisor_id',
+        'unit',
+        'start_date',
+        'end_date',
+        'status',
+    ];
     
-    public function user(): BelongsTo
+    /**
+     * Definisikan relasi one-to-many ke Presences.
+     */
+    public function presences()
     {
-        return $this->belongsTo(User::class, 'user_id');
+        return $this->hasMany(Presence::class);
     }
 
-    public function supervisor(): BelongsTo
+    /**
+     * Definisikan relasi belongs-to ke User (intern).
+     */
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    /**
+     * Definisikan relasi belongs-to ke User (supervisor).
+     */
+    public function supervisor()
     {
         return $this->belongsTo(User::class, 'supervisor_id');
     }
