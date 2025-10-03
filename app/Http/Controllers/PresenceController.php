@@ -1,17 +1,22 @@
 <?php
 
-namespace App\Http\Controllers; // ✅ perbaiki namespace
+namespace App\Http\Controllers;
 
 use App\Models\Presence;
 use App\Models\Internship;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
-use App\Services\GeolocationService;
-use Carbon\Carbon;
+use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
+use Carbon\Carbon;
+use App\Services\GeolocationService;
+use Illuminate\Support\Facades\Storage;
 
-class PresenceController extends Controller // ✅ extend controller Laravel
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+
+class PresenceController extends Controller
 {
+    use AuthorizesRequests;
+
     protected $geolocationService;
 
     public function __construct(GeolocationService $geolocationService)
@@ -19,128 +24,131 @@ class PresenceController extends Controller // ✅ extend controller Laravel
         $this->geolocationService = $geolocationService;
     }
 
-    public function checkIn(Request $request, Internship $internship)
+    public function index()
     {
-        $request->validate([
-            'photo' => 'required|image',
-            'latitude' => 'required|numeric',
-            'longitude' => 'required|numeric',
-        ]);
+        $user = Auth::user();
+        $internship = Internship::where('user_id', $user->id)->where('status', 'active')->first();
 
-        if ($internship->user_id !== Auth::id()) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        if (!$internship) {
+            return redirect()->route('dashboard')->with('error', 'Anda tidak memiliki program magang yang aktif.');
         }
 
-        $today = Carbon::today()->toDateString();
-        $now = Carbon::now();
-
-        $existingPresence = Presence::where('internship_id', $internship->id)
-            ->where('date', $today)
+        $todayPresence = Presence::where('internship_id', $internship->id)
+            ->whereDate('date', Carbon::today())
             ->first();
 
-        if ($existingPresence && $existingPresence->checkin_time) {
-            return response()->json(['message' => 'Anda sudah melakukan check-in hari ini.'], 422);
-        }
-
-        $pertaminaLat = 1.6854;
-        $pertaminaLon = 102.1121;
-        $maxDistanceMeters = 200;
-
-        $distance = $this->geolocationService->calculateDistance(
-            $request->latitude,
-            $request->longitude,
-            $pertaminaLat,
-            $pertaminaLon
-        );
-
-        $locationVerified = $distance <= $maxDistanceMeters;
-        $reviewReason = null;
-        if (!$locationVerified) {
-            $reviewReason = "Lokasi di luar radius yang diizinkan (".round($distance)."m).";
-        }
-
-        $path = $request->file('photo')->store("presences/{$today}", 'public');
-
-        $presence = Presence::updateOrCreate(
-            ['internship_id' => $internship->id, 'date' => $today],
-            [
-                'user_id' => Auth::id(),
-                'checkin_time' => $now,
-                'checkin_photo_url' => $path,
-                'checkin_lat' => $request->latitude,
-                'checkin_lon' => $request->longitude,
-                'status' => 'present',
-                'location_verified' => $locationVerified,
-                'location_distance_m' => round($distance),
-                'needs_manual_review_reason' => $reviewReason
-            ]
-        );
-
-        return response()->json([
-            'message' => 'Check-in berhasil!',
-            'presence' => $presence,
-        ], 201);
+        return Inertia::render('Presence/Index', [
+            'internship' => $internship,
+            'todayPresence' => $todayPresence,
+        ]);
     }
 
-    public function checkOut(Request $request, Internship $internship)
+    public function storeCheckIn(Request $request)
     {
         $request->validate([
-            'photo' => 'required|image',
+            'internship_id' => 'required|exists:internships,id',
             'latitude' => 'required|numeric',
             'longitude' => 'required|numeric',
+            'photo' => 'required|image',
         ]);
 
-        if ($internship->user_id !== Auth::id()) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
+        $internship = Internship::findOrFail($request->internship_id);
+        $this->authorize('update', $internship); // Pastikan user adalah pemilik internship
 
-        $today = Carbon::today()->toDateString();
-        $now = Carbon::now();
-
-        $presence = Presence::where('internship_id', $internship->id)
-            ->where('date', $today)
+        $todayPresence = Presence::where('internship_id', $internship->id)
+            ->whereDate('date', Carbon::today())
             ->first();
 
-        if (!$presence || !$presence->checkin_time) {
-            return response()->json(['message' => 'Anda belum melakukan check-in hari ini.'], 422);
+        if ($todayPresence) {
+            return back()->with('error', 'Anda sudah melakukan check-in hari ini.');
         }
 
-        if ($presence->checkout_time) {
-            return response()->json(['message' => 'Anda sudah melakukan check-out hari ini.'], 422);
-        }
+        // Simpan foto
+        $path = $request->file('photo')->store('presence-photos', 'public');
+        $photoUrl = Storage::url($path);
 
-        $pertaminaLat = 1.6854;
-        $pertaminaLon = 102.1121;
-        $maxDistanceMeters = 200;
-
+        // Validasi Lokasi
         $distance = $this->geolocationService->calculateDistance(
             $request->latitude,
             $request->longitude,
-            $pertaminaLat,
-            $pertaminaLon
+            config('services.pertamina.latitude'),
+            config('services.pertamina.longitude')
         );
 
-        $locationVerified = $distance <= $maxDistanceMeters;
-        $reviewReason = $presence->needs_manual_review_reason;
-        if (!$locationVerified) {
-            $reviewReason = "Lokasi di luar radius yang diizinkan saat check-out (".round($distance)."m).";
-        }
+        $isVerified = $distance <= config('services.pertamina.radius_meters');
 
-        $path = $request->file('photo')->store("presences/{$today}", 'public');
-
-        $presence->update([
-            'checkout_time' => $now,
-            'checkout_photo_url' => $path,
-            'checkout_lat' => $request->latitude,
-            'checkout_lon' => $request->longitude,
-            'location_verified' => $presence->location_verified && $locationVerified,
+        Presence::create([
+            'internship_id' => $internship->id,
+            'user_id' => Auth::id(),
+            'date' => Carbon::today(),
+            'checkin_time' => Carbon::now(),
+            'checkin_photo_url' => $photoUrl,
+            'checkin_lat' => $request->latitude,
+            'checkin_lon' => $request->longitude,
+            'status' => $isVerified ? 'present' : 'pending_location',
+            'location_verified' => $isVerified,
             'location_distance_m' => round($distance),
-            'needs_manual_review_reason' => $reviewReason
         ]);
 
-        return response()->json([
-            'message' => 'Check-out berhasil!',
-            'presence' => $presence,
-        ], 200);
+        return redirect()->route('presence.index')->with('success', 'Check-in berhasil direkam.');
+    }
+
+    public function storeCheckOut(Request $request)
+    {
+        $request->validate([
+            'presence_id' => 'required|exists:presences,id',
+            'latitude' => 'required|numeric',
+            'longitude' => 'required|numeric',
+            'photo' => 'required|image',
+        ]);
+
+        $presence = Presence::findOrFail($request->presence_id);
+        $this->authorize('update', $presence->internship);
+
+        if ($presence->checkout_time) {
+            return back()->with('error', 'Anda sudah melakukan check-out hari ini.');
+        }
+
+        // Simpan foto
+        $path = $request->file('photo')->store('presence-photos', 'public');
+        $photoUrl = Storage::url($path);
+
+        $presence->update([
+            'checkout_time' => Carbon::now(),
+            'checkout_photo_url' => $photoUrl,
+            'checkout_lat' => $request->latitude,
+            'checkout_lon' => $request->longitude,
+        ]);
+
+        return redirect()->route('presence.index')->with('success', 'Check-out berhasil direkam.');
+    }
+    
+    public function review()
+    {
+        $this->authorize('viewAny', Presence::class); // Placeholder, you might need a PresencePolicy
+
+        $presences = Presence::where('location_verified', false)
+            ->with(['user', 'internship'])
+            ->latest()
+            ->paginate(20);
+            
+        return Inertia::render('Presence/Review', [
+            'presences' => $presences,
+        ]);
+    }
+    
+    public function verify(Presence $presence)
+    {
+        $this->authorize('update', $presence); // Placeholder, you might need a PresencePolicy
+
+        $presence->update([
+            'location_verified' => true,
+            'status' => 'present',
+            'location_verified_by' => Auth::id(),
+        ]);
+
+        // Kirim notifikasi ke intern jika perlu
+
+        return back()->with('success', 'Presensi berhasil diverifikasi.');
     }
 }

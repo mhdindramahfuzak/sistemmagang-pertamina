@@ -3,7 +3,9 @@
 namespace App\Providers;
 
 use App\Models\Logbook; 
+use App\Models\Presence;
 use App\Policies\LogbookPolicy; 
+use App\Policies\PresencePolicy;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
 
@@ -16,6 +18,7 @@ class AuthServiceProvider extends ServiceProvider
      */
     protected $policies = [
         Logbook::class => LogbookPolicy::class, // <-- Tambahkan baris ini
+        Presence::class => PresencePolicy::class,
     ];
 
     /**

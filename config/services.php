@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'pertamina' => [
+    'latitude' => env('PERTAMINA_LATITUDE', 1.350157),
+    'longitude' => env('PERTAMINA_LONGITUDE', 102.153747),
+    'radius_meters' => env('PRESENCE_RADIUS_METERS', 5000), // Jarak toleransi dalam meter
+    ],
 ];

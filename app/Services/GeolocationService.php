@@ -6,12 +6,7 @@ class GeolocationService
 {
     /**
      * Menghitung jarak antara dua titik koordinat menggunakan formula Haversine.
-     *
-     * @param float $lat1
-     * @param float $lon1
-     * @param float $lat2
-     * @param float $lon2
-     * @return float Jarak dalam meter.
+     * Mengembalikan jarak dalam meter.
      */
     public function calculateDistance(float $lat1, float $lon1, float $lat2, float $lon2): float
     {

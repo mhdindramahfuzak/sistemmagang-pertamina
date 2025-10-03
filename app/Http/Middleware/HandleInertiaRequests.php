@@ -17,7 +17,7 @@ class HandleInertiaRequests extends Middleware
     /**
      * Determine the current asset version.
      */
-    public function version(Request $request): ?string
+    public function version(Request $request): string|null
     {
         return parent::version($request);
     }
@@ -31,9 +31,24 @@ class HandleInertiaRequests extends Middleware
     {
         return [
             ...parent::share($request),
-            'auth' => [
-                'user' => $request->user(),
+            'auth' => function () use ($request) {
+                $user = $request->user();
+                if ($user) {
+                    // Eager load roles to be available on the user object
+                    $user->load('roles');
+                }
+
+                return [
+                    'user' => $user,
+                    // Share roles only if user exists
+                    'roles' => $user ? $user->getRoleNames() : [],
+                ];
+            },
+            'flash' => [
+                'success' => fn () => $request->session()->get('success'),
+                'error' => fn () => $request->session()->get('error'),
             ],
         ];
     }
 }
+
