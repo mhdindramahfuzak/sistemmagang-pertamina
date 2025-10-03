@@ -2,85 +2,103 @@ import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import { Head, useForm, usePage } from '@inertiajs/react';
 import { useState, useRef, useCallback, useEffect } from 'react';
 import Webcam from 'react-webcam';
-import Swal from 'sweetalert2'; // <-- IMPORT SWEETALERT
+import Swal from 'sweetalert2';
 
-// Komponen untuk menampilkan jam digital
-const DigitalClock = () => {
-    const [time, setTime] = useState(new Date());
+// --- Custom Hook untuk Validasi Waktu di Frontend ---
+// Hook ini mengelola semua logika terkait waktu secara terpisah.
+const useTimeValidation = (presenceConfig) => {
+    const [timeState, setTimeState] = useState({
+        isCheckinTime: false,
+        isCheckoutTime: false,
+        currentTime: new Date()
+    });
 
     useEffect(() => {
-        const timerId = setInterval(() => setTime(new Date()), 1000);
-        return () => clearInterval(timerId);
-    }, []);
+        // Guard clause untuk memastikan config tidak null
+        if (!presenceConfig) return;
 
-    return (
-        <div className="text-4xl font-bold text-gray-800">
-            {time.toLocaleTimeString('id-ID')}
-        </div>
-    );
+        const checkTime = () => {
+            const now = new Date();
+            const [checkinStartHour, checkinStartMinute] = presenceConfig.checkin_start.split(':');
+            const [checkinEndHour, checkinEndMinute] = presenceConfig.checkin_end.split(':');
+            const [checkoutStartHour, checkoutStartMinute] = presenceConfig.checkout_start.split(':');
+            const [checkoutEndHour, checkoutEndMinute] = presenceConfig.checkout_end.split(':');
+
+            const checkinStartTime = new Date();
+            checkinStartTime.setHours(checkinStartHour, checkinStartMinute, 0, 0);
+
+            const checkinEndTime = new Date();
+            checkinEndTime.setHours(checkinEndHour, checkinEndMinute, 0, 0);
+
+            const checkoutStartTime = new Date();
+            checkoutStartTime.setHours(checkoutStartHour, checkoutStartMinute, 0, 0);
+
+            const checkoutEndTime = new Date();
+            checkoutEndTime.setHours(checkoutEndHour, checkoutEndMinute, 0, 0);
+
+            setTimeState({
+                isCheckinTime: now >= checkinStartTime && now <= checkinEndTime,
+                isCheckoutTime: now >= checkoutStartTime && now <= checkoutEndTime,
+                currentTime: now
+            });
+        };
+
+        checkTime(); // Panggil sekali saat komponen dimuat
+        const timerId = setInterval(checkTime, 30000); // Update waktu setiap 30 detik
+
+        return () => clearInterval(timerId); // Bersihkan interval saat komponen tidak lagi ditampilkan
+    }, [presenceConfig]);
+
+    return timeState;
 };
 
 
-export default function Index({ auth, activeInternship, todayPresence }) {
-    const { flash, errors: validationErrors } = usePage().props; // Ambil flash & errors
+// Komponen untuk menampilkan jam digital
+const DigitalClock = ({ time }) => (
+    <div className="text-4xl font-bold text-gray-800">
+        {time.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+    </div>
+);
+
+
+export default function Index({ auth, activeInternship, todayPresence, presenceConfig }) {
+    const { flash, errors: validationErrors } = usePage().props;
+    // Menggunakan custom hook untuk mendapatkan status waktu terkini
+    const { isCheckinTime, isCheckoutTime, currentTime } = useTimeValidation(presenceConfig);
+
     const [isCameraOpen, setIsCameraOpen] = useState(false);
-    const [location, setLocation] = useState(null);
     const [locationError, setLocationError] = useState('');
-    const [facingMode, setFacingMode] = useState('user'); // 'user' untuk kamera depan
+    const [facingMode, setFacingMode] = useState('user');
 
     const webcamRef = useRef(null);
-    const { data, setData, post, processing, errors } = useForm({
+    const { data, setData, post, processing } = useForm({
         photo: null,
         latitude: '',
         longitude: '',
     });
 
-    // --- EFEK UNTUK MENAMPILKAN NOTIFIKASI DARI SERVER ---
+    // useEffect untuk menampilkan notifikasi dari server (sukses/gagal)
     useEffect(() => {
         if (flash.success) {
-            Swal.fire({
-                toast: true,
-                position: 'top-end',
-                icon: 'success',
-                title: flash.success,
-                showConfirmButton: false,
-                timer: 3000,
-            });
+            Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: flash.success, showConfirmButton: false, timer: 3000 });
         } else if (flash.error) {
-            Swal.fire({
-                toast: true,
-                position: 'top-end',
-                icon: 'error',
-                title: flash.error,
-                showConfirmButton: false,
-                timer: 4000,
-            });
+            Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: flash.error, showConfirmButton: false, timer: 5000 });
         }
     }, [flash]);
 
-    // --- EFEK UNTUK MENAMPILKAN ERROR VALIDASI ---
+    // useEffect untuk menampilkan error validasi
     useEffect(() => {
         const errorValues = Object.values(validationErrors);
         if (errorValues.length > 0) {
-            const errorMessage = errorValues.join('<br>');
-            Swal.fire({
-                icon: 'error',
-                title: 'Oops... Terjadi Kesalahan',
-                html: errorMessage,
-            });
+            Swal.fire({ icon: 'error', title: 'Oops... Terjadi Kesalahan', html: errorValues.join('<br>') });
         }
     }, [validationErrors]);
-
 
     const getLocation = () => {
         setLocationError('');
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(
                 (position) => {
-                    setLocation({
-                        latitude: position.coords.latitude,
-                        longitude: position.coords.longitude,
-                    });
                     setData(prevData => ({
                         ...prevData,
                         latitude: position.coords.latitude,
@@ -98,6 +116,16 @@ export default function Index({ auth, activeInternship, todayPresence }) {
     };
 
     const handlePresence = (type) => {
+        // Validasi waktu di frontend sebelum membuka kamera
+        if (type === 'checkin' && !isCheckinTime) {
+            Swal.fire('Di Luar Jam Kerja', `Check-in hanya bisa dilakukan antara pukul ${presenceConfig.checkin_start} dan ${presenceConfig.checkin_end}.`, 'warning');
+            return;
+        }
+        if (type === 'checkout' && !isCheckoutTime) {
+            Swal.fire('Di Luar Jam Kerja', `Check-out hanya bisa dilakukan antara pukul ${presenceConfig.checkout_start} dan ${presenceConfig.checkout_end}.`, 'warning');
+            return;
+        }
+
         setIsCameraOpen(true);
         getLocation();
     };
@@ -105,7 +133,6 @@ export default function Index({ auth, activeInternship, todayPresence }) {
     const capturePhoto = useCallback(() => {
         const imageSrc = webcamRef.current.getScreenshot();
         if (imageSrc) {
-            // Convert base64 to Blob
             fetch(imageSrc)
                 .then(res => res.blob())
                 .then(blob => {
@@ -116,52 +143,27 @@ export default function Index({ auth, activeInternship, todayPresence }) {
         setIsCameraOpen(false);
     }, [webcamRef, setData]);
 
+    // useEffect untuk memicu konfirmasi SweetAlert saat foto berhasil diambil
     useEffect(() => {
         if (data.photo && data.latitude) {
-            // Tentukan route berdasarkan apakah sudah check-in atau belum
             const targetRoute = todayPresence && !todayPresence.checkout_time ? 'presence.checkout' : 'presence.checkin';
             const actionText = targetRoute === 'presence.checkin' ? 'Check-in' : 'Check-out';
-
             Swal.fire({
-                title: `Konfirmasi ${actionText}`,
-                text: "Anda akan mengirimkan data presensi sekarang.",
-                imageUrl: URL.createObjectURL(data.photo),
-                imageHeight: 200,
-                imageAlt: 'Foto Presensi',
-                showCancelButton: true,
-                confirmButtonColor: '#16a34a',
-                cancelButtonColor: '#d33',
-                confirmButtonText: `Ya, Lakukan ${actionText}!`,
-                cancelButtonText: 'Ambil Ulang Foto',
+                title: `Konfirmasi ${actionText}`, text: "Anda akan mengirimkan data presensi sekarang.", imageUrl: URL.createObjectURL(data.photo), imageHeight: 200, imageAlt: 'Foto Presensi', showCancelButton: true, confirmButtonColor: '#16a34a', cancelButtonColor: '#d33', confirmButtonText: `Ya, Lakukan ${actionText}!`, cancelButtonText: 'Ambil Ulang Foto',
             }).then((result) => {
                 if (result.isConfirmed) {
                     post(route(targetRoute), {
-                        onStart: () => {
-                            Swal.fire({
-                                title: 'Mengirim data...',
-                                text: 'Mohon tunggu sebentar.',
-                                allowOutsideClick: false,
-                                didOpen: () => {
-                                    Swal.showLoading();
-                                },
-                            });
-                        },
-                        onFinish: () => {
-                           // SweetAlert untuk success/error akan ditangani oleh useEffect flash
-                        }
+                        onStart: () => Swal.fire({ title: 'Mengirim data...', text: 'Mohon tunggu sebentar.', allowOutsideClick: false, didOpen: () => Swal.showLoading() }),
                     });
                 } else {
-                    // Reset foto jika batal
                     setData('photo', null);
                 }
             });
         }
     }, [data.photo]);
 
-    const toggleCameraFacingMode = () => {
-        setFacingMode(prevMode => (prevMode === 'user' ? 'environment' : 'user'));
-    };
-
+    const toggleCameraFacingMode = () => setFacingMode(prev => (prev === 'user' ? 'environment' : 'user'));
+    
     const renderPresenceStatus = () => {
         if (!activeInternship) {
             return <div className="rounded-md bg-yellow-100 p-4 text-center text-yellow-800">Anda tidak memiliki jadwal magang yang aktif saat ini.</div>;
@@ -186,8 +188,12 @@ export default function Index({ auth, activeInternship, todayPresence }) {
         return <div className="rounded-md bg-gray-200 p-4 text-center text-gray-700">Anda belum melakukan presensi hari ini.</div>;
     };
 
+    // Logika untuk menentukan status tombol
+    const canCheckin = !todayPresence;
     const canCheckout = todayPresence && !todayPresence.checkout_time;
     const isPresenceDone = todayPresence && todayPresence.checkout_time;
+    const presenceAction = canCheckin ? 'checkin' : (canCheckout ? 'checkout' : null);
+    const isButtonDisabled = processing || (presenceAction === 'checkin' && !isCheckinTime) || (presenceAction === 'checkout' && !isCheckoutTime);
 
     return (
         <AuthenticatedLayout
@@ -195,33 +201,32 @@ export default function Index({ auth, activeInternship, todayPresence }) {
             header={<h2 className="text-xl font-semibold leading-tight text-gray-800">Presensi Harian</h2>}
         >
             <Head title="Presensi" />
-
             <div className="py-12">
                 <div className="mx-auto max-w-2xl sm:px-6 lg:px-8">
                     <div className="overflow-hidden bg-white shadow-sm sm:rounded-lg">
                         <div className="flex flex-col items-center p-6 text-gray-900">
-
-                            <DigitalClock />
-                            <p className="mb-6 text-lg text-gray-600">{new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-
-                            <div className="w-full mb-6">
-                                {renderPresenceStatus()}
-                            </div>
-
-                            {locationError && <p className="mb-4 text-sm text-red-600">{locationError}</p>}
+                            <DigitalClock time={currentTime} />
+                            <p className="mb-6 text-lg text-gray-600">{currentTime.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                            <div className="w-full mb-6">{renderPresenceStatus()}</div>
 
                             {!isPresenceDone && activeInternship && (
-                                <button
-                                    onClick={() => handlePresence(canCheckout ? 'checkout' : 'checkin')}
-                                    disabled={processing}
-                                    className={`inline-flex items-center justify-center rounded-md px-6 py-3 text-base font-medium text-white shadow-lg transition-transform duration-200 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50
-                                    ${canCheckout ? 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500' : 'bg-green-600 hover:bg-green-700 focus:ring-green-500'}
-                                `}
-                                >
-                                    {processing ? 'Memproses...' : (canCheckout ? 'Lakukan Check-out' : 'Lakukan Check-in')}
-                                </button>
+                                <div className="flex flex-col items-center">
+                                    <button
+                                        onClick={() => handlePresence(presenceAction)}
+                                        disabled={isButtonDisabled}
+                                        className={`inline-flex items-center justify-center rounded-md px-6 py-3 text-base font-medium text-white shadow-lg transition-transform duration-200 hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100
+                                        ${canCheckout ? 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500' : 'bg-green-600 hover:bg-green-700 focus:ring-green-500'}`}
+                                    >
+                                        {processing ? 'Memproses...' : (canCheckout ? 'Lakukan Check-out' : 'Lakukan Check-in')}
+                                    </button>
+                                    {isButtonDisabled && !processing && presenceConfig && (
+                                         <p className="mt-3 text-sm text-red-600 text-center">
+                                            {presenceAction === 'checkin' && `Check-in dibuka pukul ${presenceConfig.checkin_start} - ${presenceConfig.checkin_end}`}
+                                            {presenceAction === 'checkout' && `Check-out dibuka pukul ${presenceConfig.checkout_start} - ${presenceConfig.checkout_end}`}
+                                         </p>
+                                    )}
+                                </div>
                             )}
-
                         </div>
                     </div>
                 </div>
@@ -234,9 +239,7 @@ export default function Index({ auth, activeInternship, todayPresence }) {
                             audio={false}
                             ref={webcamRef}
                             screenshotFormat="image/jpeg"
-                            videoConstraints={{
-                                facingMode: facingMode
-                            }}
+                            videoConstraints={{ facingMode }}
                             className="h-full w-full rounded"
                         />
                         <div className="mt-4 flex justify-between gap-2">
@@ -250,4 +253,3 @@ export default function Index({ auth, activeInternship, todayPresence }) {
         </AuthenticatedLayout>
     );
 }
-

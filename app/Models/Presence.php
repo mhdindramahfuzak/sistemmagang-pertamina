@@ -33,14 +33,14 @@ class Presence extends Model
     protected function checkinPhotoUrl(): Attribute
     {
         return Attribute::make(
-            get: fn ($value) => $value ? Storage::disk('public')->url($value) : null,
+            get: fn ($value) => $value ? Storage::url($value) : null,
         );
     }
 
     protected function checkoutPhotoUrl(): Attribute
     {
         return Attribute::make(
-            get: fn ($value) => $value ? Storage::disk('public')->url($value) : null,
+            get: fn ($value) => $value ? Storage::url($value) : null,
         );
     }
 }
