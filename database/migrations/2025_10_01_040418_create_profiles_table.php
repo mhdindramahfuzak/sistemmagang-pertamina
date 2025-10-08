@@ -14,11 +14,11 @@ return new class extends Migration
         Schema::create('profiles', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
-            $table->string('nim')->unique();
-            $table->string('jurusan');
-            $table->string('kampus');
-            $table->string('kontak');
-            $table->json('dokumen')->nullable(); // Menyimpan path KTP, KTM, dll.
+            $table->string('nim')->unique()->nullable(); // Tambahkan nullable
+            $table->string('jurusan')->nullable();       // Tambahkan nullable
+            $table->string('kampus')->nullable();        // Tambahkan nullable
+            $table->string('kontak')->nullable();        // Tambahkan nullable
+            $table->json('dokumen')->nullable();
             $table->timestamp('verified_at')->nullable();
             $table->timestamps();
         });

@@ -13,12 +13,12 @@ return new class extends Migration
     {
         Schema::create('internships', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->constrained()->onDelete('cascade'); // Intern's user_id
+            $table->foreignId('user_id')->constrained()->onDelete('cascade');
             $table->foreignId('supervisor_id')->nullable()->constrained('users')->onDelete('set null');
-            $table->string('unit');
+            $table->string('unit')->nullable(); // TAMBAHKAN ATAU PERBAIKI BARIS INI
             $table->date('start_date');
             $table->date('end_date');
-            $table->string('status')->default('pending'); // pending, active, completed, rejected
+            $table->string('status')->default('pending');
             $table->timestamps();
         });
     }

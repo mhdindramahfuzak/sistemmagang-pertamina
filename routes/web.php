@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Redirect;
 use Inertia\Inertia;
 use App\Http\Requests\PresenceCheckInRequest; // Impor Form Request
 use App\Http\Controllers\InternshipController; 
-use App\Http\Controllers\FinalReportController
+use App\Http\Controllers\FinalReportController; // <--- TAMBAHKAN TITIK KOMA DI SINI
 
 Route::get('/', function () {
     return Inertia::render('Welcome', [
@@ -32,11 +32,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
     
     // Presence
     Route::get('/presence', [PresenceController::class, 'index'])->name('presence.index');
-    // Gunakan PresenceCheckInRequest untuk validasi pada kedua route
     Route::post('/presence/{internship}/checkin', [PresenceController::class, 'checkIn'])->name('presence.checkin');
     Route::post('/presence/{internship}/checkout', [PresenceController::class, 'checkOut'])->name('presence.checkout');
     
     // Logbook
+    Route::resource('logbooks', LogbookController::class);
+    Route::put('/logbooks/{logbook}/verify', [LogbookController::class, 'verify'])->name('logbooks.verify')->middleware('role:supervisor|admin');
+    Route::get('/logbooks/pending', [LogbookController::class, 'pendingVerification'])
+    ->name('logbooks.pending')
+    ->middleware('role:supervisor|admin');
+
     Route::resource('logbooks', LogbookController::class);
     Route::put('/logbooks/{logbook}/verify', [LogbookController::class, 'verify'])->name('logbooks.verify')->middleware('role:supervisor|admin');
     
@@ -56,4 +61,3 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
 
 require __DIR__.'/auth.php';
-

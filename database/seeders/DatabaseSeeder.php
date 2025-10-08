@@ -20,6 +20,7 @@ class DatabaseSeeder extends Seeder
             AdminSeeder::class,
             SupervisorSeeder::class,
             InternSeeder::class,
+            TestDataSeeder::class,
         ]);
     }
 }
