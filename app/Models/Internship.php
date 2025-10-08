@@ -16,6 +16,8 @@ class Internship extends Model
         'start_date',
         'end_date',
         'status',
+        'final_report_path', 
+        'final_report_status', 
     ];
     
     /**

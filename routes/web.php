@@ -7,8 +7,11 @@ use App\Http\Controllers\PresenceController;
 use App\Http\Controllers\ReportController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Redirect;
 use Inertia\Inertia;
 use App\Http\Requests\PresenceCheckInRequest; // Impor Form Request
+use App\Http\Controllers\InternshipController; 
+use App\Http\Controllers\FinalReportController
 
 Route::get('/', function () {
     return Inertia::render('Welcome', [
@@ -24,7 +27,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Profile
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::post('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
     
     // Presence
@@ -37,6 +40,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('logbooks', LogbookController::class);
     Route::put('/logbooks/{logbook}/verify', [LogbookController::class, 'verify'])->name('logbooks.verify')->middleware('role:supervisor|admin');
     
+    // Internship
+    Route::get('/internship/history', [InternshipController::class, 'history'])->name('internship.history');
+
+    // Final Report
+    Route::get('/final-report', [FinalReportController::class, 'index'])->name('final-report.index');
+    Route::post('/final-report', [FinalReportController::class, 'store'])->name('final-report.store');
+
     // Reports (Hanya untuk Supervisor dan Admin)
     Route::middleware('role:supervisor|admin')->group(function () {
         Route::get('/reports/attendance', [ReportController::class, 'attendance'])->name('reports.attendance');

@@ -30,8 +30,16 @@ export default function Authenticated({ children }) {
                         <NavComponent href={route('logbooks.index')} active={route().current('logbooks.index')}>
                             Logbook
                         </NavComponent>
+                        <NavComponent href={route('internship.history')} active={route().current('internship.history')}>
+                            Riwayat Magang
+                        </NavComponent>
+                        {/* Tambahkan NavLink baru di bawah ini */}
+                        <NavComponent href={route('final-report.index')} active={route().current('final-report.index')}>
+                            Laporan Akhir
+                        </NavComponent>
                     </>
                 )}
+
 
                 {/* Menu untuk Supervisor/Admin */}
                 {(hasRole('supervisor') || hasRole('admin') || hasRole('super_admin')) && (
